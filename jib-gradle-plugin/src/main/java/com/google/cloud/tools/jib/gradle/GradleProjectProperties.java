@@ -192,19 +192,42 @@ class GradleProjectProperties implements ProjectProperties {
       }
 
       // Adds dependency files
-      javaContainerBuilder.addDependencies(
-          dependencyFiles
+      List<Path> thirdPartyDependencies = dependencyFiles
               .getFiles()
               .stream()
               .filter(File::exists)
+              .filter(this::isThirdPartyDependency)
               .map(File::toPath)
-              .collect(Collectors.toList()));
+              .collect(Collectors.toList());
 
-      return javaContainerBuilder.toContainerBuilder();
+      List<Path> projectDependencies = dependencyFiles
+              .getFiles()
+              .stream()
+              .filter(File::exists)
+              .filter(this::isProjectDependency)
+              .map(File::toPath)
+              .collect(Collectors.toList());
 
+      logger.warn("{} third party dependencies, {} project dependencies", thirdPartyDependencies.size(), projectDependencies.size());
+
+      javaContainerBuilder.addDependencies(thirdPartyDependencies);
+      JibContainerBuilder builder = javaContainerBuilder.toContainerBuilder();
+      builder.addLayer(projectDependencies, "/app/libs");
+
+      return builder;
     } catch (IOException ex) {
       throw new GradleException("Obtaining project build output files failed", ex);
     }
+  }
+
+
+  private boolean isThirdPartyDependency(File file) {
+    return file.getPath().contains(".gradle");
+  }
+
+
+  private boolean isProjectDependency(File file) {
+    return ! file.getPath().contains(".gradle");
   }
 
   @Override
